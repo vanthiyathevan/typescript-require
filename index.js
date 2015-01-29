@@ -2,18 +2,21 @@ var vm = require('vm');
 var fs = require('fs');
 var path = require('path');
 
-var tsc = path.join(path.dirname(require.resolve("typescript")),"tsc.js");
+var tsc = path.join(path.dirname(require.resolve("typescript")), "tsc.js");
 var tscScript = vm.createScript(fs.readFileSync(tsc, "utf8"), tsc);
 var libPath = path.join(path.dirname(require.resolve("typescript")), "lib.d.ts")
 
 var options = {
   nodeLib: false,
-  targetES5: true,
+  target: 'ES3',
   moduleKind: 'commonjs',
   exitOnError: true
 };
 
 module.exports = function(opts) {
+  if (opts && opts.target) {
+    opts.target = /^ES[356]$/.test(opts.target) ? opts.target : 'ES3';
+  }
   options = merge(options, opts);
 };
 
@@ -38,7 +41,7 @@ function isModified(tsname, jsname) {
  * Compiles TypeScript file, returns js file path
  * @return {string} js file path
  */
-function compileTS (module) {
+function compileTS(module) {
   var exitCode = 0;
   var tmpDir = path.join(process.cwd(), "tmp", "tsreq");
   var jsname = path.join(tmpDir, path.basename(module.filename, ".ts") + ".js");
@@ -51,8 +54,10 @@ function compileTS (module) {
     "node",
     "tsc.js",
     "--nolib",
-    "--target",
-    options.targetES5 ? "ES5" : "ES3", !! options.moduleKind ? "--module" : "", !! options.moduleKind ? options.moduleKind : "",
+    "--target", 
+    (!!options.target && /^ES[356]$/.test(options.target)) ? options.target : 'ES3', 
+    !!options.moduleKind ? "--module" : "", 
+    !!options.moduleKind ? options.moduleKind : "",
     "--outDir",
     tmpDir,
     libPath,
@@ -87,7 +92,7 @@ function compileTS (module) {
   return jsname;
 }
 
-function runJS (jsname, module) {
+function runJS(jsname, module) {
   var content = fs.readFileSync(jsname, 'utf8');
 
   var sandbox = {};
@@ -102,7 +107,9 @@ function runJS (jsname, module) {
   sandbox.global = sandbox;
   sandbox.root = root;
 
-  return vm.runInNewContext(content, sandbox, { filename: jsname });
+  return vm.runInNewContext(content, sandbox, {
+    filename: jsname
+  });
 }
 
 function merge(a, b) {
